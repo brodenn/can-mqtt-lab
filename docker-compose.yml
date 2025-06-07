@@ -10,3 +10,8 @@ services:
     build: ./generator
     depends_on:
       - api
+  can-reader:
+    build: ./can_reader
+    network_mode: host      # Krävs för att komma åt vcan0 på värdmaskinen
+    depends_on:
+      - api
