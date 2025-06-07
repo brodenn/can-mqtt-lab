@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head><title>CAN Dashboard</title></head>
+<body>
+<h2>Live CAN Data</h2>
+<table border="1" id="canTable"></table>
+
+<script>
+function updateTable() {
+  fetch("/api/data")
+    .then(res => res.json())
+    .then(data => {
+      const table = document.getElementById("canTable");
+      table.innerHTML = "<tr><th>ID</th><th>Payload</th></tr>";
+      for (const [id, payload] of Object.entries(data)) {
+        table.innerHTML += `<tr><td>${id}</td><td>${payload.join(", ")}</td></tr>`;
+      }
+    });
+}
+setInterval(updateTable, 1000);
+</script>
+</body>
+</html>
