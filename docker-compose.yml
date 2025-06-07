@@ -15,3 +15,7 @@ services:
     network_mode: host      # Krävs för att komma åt vcan0 på värdmaskinen
     depends_on:
       - api
+  mqtt-broker:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"

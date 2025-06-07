@@ -1,23 +1,126 @@
 <!DOCTYPE html>
 <html>
-<head><title>CAN Dashboard</title></head>
+<head>
+  <title>CAN Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background-color: #f4f6f8;
+    }
+    h2, h3 {
+      margin-top: 20px;
+    }
+    #controls {
+      margin-bottom: 10px;
+    }
+    #canTable {
+      border-collapse: collapse;
+      width: 80%;
+      margin-top: 20px;
+    }
+    #canTable th, #canTable td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: left;
+    }
+    #canTable th {
+      background-color: #ddd;
+    }
+    .highlight {
+      background-color: #c0ffc0;
+      transition: background-color 2s ease;
+    }
+    canvas {
+      margin-top: 40px;
+      background: #fafbfc;
+      border-radius: 10px;
+    }
+  </style>
+</head>
 <body>
-<h2>Live CAN Data</h2>
-<table border="1" id="canTable"></table>
+  <h2>Live CAN Data</h2>
 
-<script>
-function updateTable() {
-  fetch("/api/data")
-    .then(res => res.json())
-    .then(data => {
-      const table = document.getElementById("canTable");
-      table.innerHTML = "<tr><th>ID</th><th>Payload</th></tr>";
-      for (const [id, payload] of Object.entries(data)) {
-        table.innerHTML += `<tr><td>${id}</td><td>${payload.join(", ")}</td></tr>`;
+  <div id="controls">
+    <label>Filter by CAN ID: </label>
+    <input type="text" id="filterInput" placeholder="e.g. 0x123">
+  </div>
+
+  <table id="canTable">
+    <tr><th>ID</th><th>Payload</th></tr>
+  </table>
+
+  <h3>Live Chart – First Byte of CAN ID 0x123</h3>
+  <canvas id="canChart" width="600" height="250"></canvas>
+
+  <script>
+    const ctx = document.getElementById('canChart').getContext('2d');
+    const maxPoints = 20;
+
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'First Byte (ID 0x123)',
+          data: [],
+          fill: false,
+          borderColor: 'blue',
+          tension: 0.1
+        }]
+      },
+      options: {
+        animation: false,
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Message Count' }},
+          y: { title: { display: true, text: 'Byte Value' }, min: 0, max: 255 }
+        }
       }
     });
-}
-setInterval(updateTable, 1000);
-</script>
+
+    const highlightMap = {};
+
+    function updateTableAndChart() {
+      fetch("/api/data")
+        .then(res => res.json())
+        .then(data => {
+          const table = document.getElementById("canTable");
+          const filter = document.getElementById("filterInput").value.trim().toLowerCase();
+          table.innerHTML = "<tr><th>ID</th><th>Payload</th></tr>";
+
+          const now = Date.now();
+
+          for (const [id, messages] of Object.entries(data)) {
+            if (filter && !id.toLowerCase().includes(filter)) continue;
+
+            const latest = messages[messages.length - 1];
+            const row = document.createElement("tr");
+            row.innerHTML = `<td>${id}</td><td>${latest.payload.join(", ")}</td>`;
+
+            if (!highlightMap[id] || now - highlightMap[id] < 2000) {
+              row.classList.add("highlight");
+              highlightMap[id] = now;
+            }
+
+            table.appendChild(row);
+
+            if (id === "0x123" && latest.payload.length > 0) {
+              const val = latest.payload[0];
+              if (chart.data.labels.length >= maxPoints) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+              }
+              chart.data.labels.push('');
+              chart.data.datasets[0].data.push(val);
+              chart.update();
+            }
+          }
+        });
+    }
+
+    setInterval(updateTableAndChart, 1000);
+  </script>
 </body>
 </html>
