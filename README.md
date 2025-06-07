@@ -1,34 +1,34 @@
 # 🚐 docker-can-lab
 
-Ett testverktyg för CAN-baserade system – byggt med **Python, Flask och Docker**. Projektet simulerar ett CAN-nätverk i mjukvara och visar datan i realtid via en webbaserad dashboard.
+A **test tool for CAN-based systems** – built with **Python, Flask, and Docker**.  
+This project simulates a CAN network entirely in software and visualizes the data in real time via a web-based dashboard.
 
-✅ **Helt körbart i Docker – ingen fysisk CAN-hårdvara krävs.**
-
----
-
-## 🎯 Syfte
-
-Det här projektet är skapat för att:
-- Lära mig praktisk användning av Docker i en inbyggd kontext
-- Förstå containerbaserad testmiljö för CAN-nätverk
-- Förbereda inför LIA hos ITxPT och liknande organisationer
+✅ **Runs entirely in Docker – no physical CAN hardware required.**
 
 ---
 
-## ⚙️ Systemöversikt
+## 🎯 Purpose
 
-| Komponent   | Funktion |
-|-------------|----------|
-| `generator/` | Genererar fejkad CAN-data (ID + payload) |
-| `api/`       | Flask-API som tar emot, lagrar och exponerar data |
-| `frontend/`  | Web-dashboard med realtidsuppdatering (AJAX) |
-| `Docker`     | Kör allt isolerat och bärbart med `docker compose` |
+This project was created to:
+- Practice using Docker in an embedded context
+- Understand container-based test environments for CAN networks
 
 ---
 
-## 🚀 Kom igång
+## ⚙️ System Overview
 
-1. Klona repot
+| Component     | Function                                         |
+|---------------|--------------------------------------------------|
+| `generator/`  | Generates fake CAN data (ID + payload)           |
+| `api/`        | Flask API that receives, stores, and exposes data|
+| `frontend/`   | Web dashboard with real-time AJAX updates        |
+| `Docker`      | Runs everything isolated and portable via Compose|
+
+---
+
+## 🚀 Getting Started
+
+1. **Clone the repo**
 ```bash
-git clone https://github.com/ditt-användarnamn/docker-can-lab.git
+git clone https://github.com/your-username/docker-can-lab.git
 cd docker-can-lab
