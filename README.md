@@ -52,6 +52,8 @@ docker compose up --build
 
 Visit [http://localhost:5000](http://localhost:5000) to see the live vehicle data.
 
+![CAN Dashboard Screenshot](pics/canbus.png)
+
 ---
 
 ## 🧪 Features
