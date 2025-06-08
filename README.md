@@ -1,4 +1,4 @@
-# 🚐 docker-can-lab
+# 🚐 can-mqtt-lab
 
 A **test tool for CAN-based systems** – built with **Python, Flask, and Docker**.  
 This project simulates a CAN network entirely in software and visualizes the data in real time via a web-based dashboard.
