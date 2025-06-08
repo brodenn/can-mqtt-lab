@@ -1,22 +1,24 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>CAN Bus Dashboard</title>
+  <meta charset="UTF-8">
+  <title>🚌 CAN Bus Dashboard</title>
   <style>
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
-      background-color: #e6ecf0;
-      color: #333;
+      background-color: #111;
+      color: #f0f0f0;
     }
 
     header {
-      background-color: #2c3e50;
+      background-color: #0d47a1;
       color: white;
       padding: 20px 30px;
-      font-size: 1.5em;
+      font-size: 1.8em;
       font-weight: bold;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      letter-spacing: 1px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
     }
 
     main {
@@ -29,9 +31,9 @@
     }
 
     .card {
-      background: #ffffff;
+      background: #1e1e1e;
       border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
       padding: 25px 30px;
     }
 
@@ -43,128 +45,156 @@
     }
 
     .info-box {
-      background: #f7fafc;
-      border: 1px solid #dbe2ea;
+      background: #2b2b2b;
+      border: 1px solid #555;
       border-radius: 10px;
-      padding: 15px;
+      padding: 20px;
       text-align: center;
     }
 
     .info-box h4 {
       margin: 0 0 10px;
-      color: #555;
+      color: #ccc;
+      font-size: 1em;
+      font-weight: normal;
     }
 
     .info-box span {
-      font-size: 1.4em;
+      font-size: 1.6em;
       font-weight: bold;
-      color: #2c3e50;
+      color: #00e676;
+      font-family: monospace;
     }
 
     #debug {
       font-size: 0.9em;
-      color: #666;
+      color: #bbb;
       margin-top: 10px;
       text-align: center;
+    }
+
+    button {
+      background-color: #2196f3;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      font-size: 1em;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 15px auto 0;
+      display: block;
     }
   </style>
 </head>
 <body>
 
-<header>🚌 CAN Bus Dashboard</header>
+<header>🚌 Bus Dashboard — CAN Live Telemetry</header>
 
 <main>
   <div class="card">
-    <h3>Real-Time Bus Telemetry</h3>
+    <h3 style="margin-top: 0;">Live Data Feed</h3>
     <div class="info-grid">
-      <div class="info-box">
-        <h4>🛰️ GPS</h4>
-        <span id="gps">–</span>
-      </div>
-      <div class="info-box">
-        <h4>🛑 Doors</h4>
-        <span id="doors">–</span>
-      </div>
-      <div class="info-box">
-        <h4>👥 Passengers</h4>
-        <span id="passengers">–</span>
-      </div>
-      <div class="info-box">
-        <h4>🚏 Next Stop</h4>
-        <span id="stop">–</span>
-      </div>
-      <div class="info-box">
-        <h4>💨 Speed (km/h)</h4>
-        <span id="speed">–</span>
-      </div>
+      <div class="info-box"><h4>🛰️ GPS</h4><span id="gps">–</span></div>
+      <div class="info-box"><h4>🚪 Doors</h4><span id="doors">–</span></div>
+      <div class="info-box"><h4>👥 Passengers</h4><span id="passengers">–</span></div>
+      <div class="info-box"><h4>🚏 Next Stop</h4><span id="stop">–</span></div>
+      <div class="info-box"><h4>💨 Speed</h4><span id="speed">–</span></div>
+      <div class="info-box"><h4>🛑 Brake</h4><span id="brake">–</span></div>
+      <div class="info-box"><h4>🛎️ Stop Req</h4><span id="request">–</span></div>
+      <div class="info-box"><h4>⏱️ Delay</h4><span id="delay">–</span></div>
+      <div class="info-box"><h4>🌡️ Temp</h4><span id="temp">–</span></div>
+      <div class="info-box"><h4>🔋 Fuel</h4><span id="fuel">–</span></div>
     </div>
-    <div id="debug">Loading...</div>
+    <div id="debug"><span id="loading-msg">Loading...</span></div>
+    <button onclick="updateDashboard()">🔄 Refresh Now</button>
   </div>
 </main>
 
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
+  const socket = io({
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    timeout: 2000
+  });
+
   function decodeAscii(payload) {
-    if (!payload) return "–";
-    return payload.map(b => String.fromCharCode(b)).join('').trim();
+    return payload.map(b => b === 0 ? "" : String.fromCharCode(b)).join('').trim();
   }
+
+  function toSignedByte(val) {
+    return val > 127 ? val - 256 : val;
+  }
+
+  function updateFromPayload(id, payload) {
+    switch (id) {
+      case "0x100":
+        if (payload.length >= 4) {
+          const lat = ((payload[0] << 8) | payload[1]) / 10000;
+          const lon = ((payload[2] << 8) | payload[3]) / 10000;
+          document.getElementById("gps").innerText = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+        }
+        break;
+      case "0x101":
+        if (payload.length >= 3) {
+          const names = ["Front", "Mid", "Rear"];
+          const open = payload.map((v, i) => v ? names[i] : null).filter(Boolean).join(", ");
+          document.getElementById("doors").innerText = open || "Closed";
+        }
+        break;
+      case "0x102":
+        document.getElementById("passengers").innerText = payload[0] ?? "–";
+        break;
+      case "0x103":
+        document.getElementById("stop").innerText = decodeAscii(payload);
+        break;
+      case "0x104":
+        document.getElementById("speed").innerText = payload[0] + " km/h";
+        break;
+      case "0x105":
+        document.getElementById("brake").innerText = payload[0] === 1 ? "⚠️" : "–";
+        break;
+      case "0x106":
+        document.getElementById("request").innerText = payload[0] === 1 ? "Pressed" : "–";
+        break;
+      case "0x107":
+        const d = toSignedByte(payload[0]);
+        document.getElementById("delay").innerText = (d >= 0 ? `+${d}` : `${d}`) + " min";
+        break;
+      case "0x108":
+        if (payload.length >= 2) {
+          const t = ((payload[0] << 8) | payload[1]) / 10;
+          document.getElementById("temp").innerText = `${t.toFixed(1)} °C`;
+        }
+        break;
+      case "0x109":
+        document.getElementById("fuel").innerText = payload[0] + "%";
+        break;
+    }
+    const loading = document.getElementById("loading-msg");
+    if (loading) loading.remove();
+    document.getElementById("debug").innerText = `⏱️ Updated: ${new Date().toLocaleTimeString()}`;
+  }
+
+  socket.on("can_update", function (data) {
+    const id = Object.keys(data)[0];
+    const payload = data[id]?.payload || [];
+    updateFromPayload(id, payload);
+  });
 
   function updateDashboard() {
     fetch("/api/data")
       .then(res => res.json())
       .then(data => {
-        // Each value is a single message object (not array)
-        const getPayload = (id) => data[id] && Array.isArray(data[id].payload)
-          ? data[id].payload
-          : null;
-
-        // GPS (0x100)
-        const gps = getPayload("0x100");
-        if (gps && gps.length >= 4) {
-          const lat = ((gps[0] << 8) | gps[1]) / 10000;
-          const lon = ((gps[2] << 8) | gps[3]) / 10000;
-          document.getElementById("gps").innerText = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-        } else {
-          document.getElementById("gps").innerText = "–";
-        }
-
-        // Doors (0x101)
-        const doors = getPayload("0x101");
-        if (doors && doors.length >= 3) {
-          const names = ["Front", "Mid", "Rear"];
-          let open = doors
-            .slice(0, 3)
-            .map((state, i) => state ? names[i] : null)
-            .filter(Boolean)
-            .join(", ");
-          document.getElementById("doors").innerText = open || "Closed";
-        } else {
-          document.getElementById("doors").innerText = "–";
-        }
-
-        // Passengers (0x102)
-        const passengers = getPayload("0x102");
-        document.getElementById("passengers").innerText =
-          passengers ? passengers[0] : "–";
-
-        // Stop name (0x103)
-        const stop = getPayload("0x103");
-        document.getElementById("stop").innerText =
-          stop ? decodeAscii(stop) : "–";
-
-        // Speed (0x104)
-        const speed = getPayload("0x104");
-        document.getElementById("speed").innerText =
-          speed ? speed[0] + " km/h" : "–";
-
-        document.getElementById("debug").innerText =
-          `⏱️ Last updated: ${new Date().toLocaleTimeString()}`;
-      })
-      .catch(err => {
-        document.getElementById("debug").innerText = `❌ Error fetching data: ${err}`;
+        Object.keys(data).forEach(id => {
+          const payload = data[id].payload || [];
+          updateFromPayload(id, payload);
+        });
       });
   }
 
-  setInterval(updateDashboard, 1000);
+  window.onload = updateDashboard;
+  setInterval(updateDashboard, 10000); // poll every 10s just in case
 </script>
 
 </body>

@@ -1,33 +1,54 @@
-version: '3.8'
+version: "3.8"
 
 services:
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 1883"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+
   api:
     build: ./api
     ports:
       - "5000:5000"
     depends_on:
-      - mqtt-broker
+      mqtt-broker:
+        condition: service_healthy
     environment:
       - MQTT_BROKER=mqtt-broker
+    volumes:
+      - ./api/logs:/app/logs  # optional: persist logs if used
 
   generator:
     build: ./generator
     depends_on:
-      - api
+      mqtt-broker:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      - MQTT_BROKER=mqtt-broker
+    volumes:
+      - ./generator:/app
 
   can-reader:
     build: ./can_reader
-    network_mode: host       # Ger åtkomst till hostens nätverk och vcan0
-    privileged: true         # Ger rätt till CAN-nätverk om det behövs (lägg gärna till detta)
+    network_mode: host         # For access to vcan0 interface
+    privileged: true           # Required for CAN interface
     depends_on:
-      - api
-      - mqtt-broker
+      mqtt-broker:
+        condition: service_healthy
+      api:
+        condition: service_started
     environment:
       - MQTT_BROKER=localhost
-      - API_HOST=localhost
-
-  mqtt-broker:
-    image: eclipse-mosquitto
-    restart: unless-stopped
-    ports:
-      - "1883:1883"
+      - API_URL=http://localhost:5000/api/data
+    volumes:
+      - ./can_reader/logs:/app/logs
