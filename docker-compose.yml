@@ -5,17 +5,29 @@ services:
     build: ./api
     ports:
       - "5000:5000"
+    depends_on:
+      - mqtt-broker
+    environment:
+      - MQTT_BROKER=mqtt-broker
 
   generator:
     build: ./generator
     depends_on:
       - api
+
   can-reader:
     build: ./can_reader
-    network_mode: host      # Krävs för att komma åt vcan0 på värdmaskinen
+    network_mode: host       # Ger åtkomst till hostens nätverk och vcan0
+    privileged: true         # Ger rätt till CAN-nätverk om det behövs (lägg gärna till detta)
     depends_on:
       - api
+      - mqtt-broker
+    environment:
+      - MQTT_BROKER=localhost
+      - API_HOST=localhost
+
   mqtt-broker:
     image: eclipse-mosquitto
+    restart: unless-stopped
     ports:
       - "1883:1883"

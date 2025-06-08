@@ -1,12 +1,18 @@
 from flask import Flask, request, jsonify, render_template
-from data_store import update_data, get_data
+from data_store import update_data, get_data, get_latest_per_id
 import threading
 import json
 import time
-import os
 import paho.mqtt.client as mqtt
+import logging
 
 app = Flask(__name__, template_folder='frontend')
+
+try:
+    from flask_cors import CORS
+    CORS(app)
+except ImportError:
+    pass
 
 @app.route('/')
 def index():
@@ -17,50 +23,65 @@ def receive_data():
     data = request.get_json()
     can_id = data.get('id')
     payload = data.get('payload')
+    timestamp = data.get('timestamp') or time.time()
+    extended = data.get('extended', False)
+    print(f"POSTED DATA: {data}")
 
     if not can_id or not isinstance(payload, list):
+        print("❌ Invalid CAN message in HTTP POST:", data)
         return jsonify({'error': 'Invalid CAN message'}), 400
 
-    update_data(can_id, payload)
+    update_data(can_id, payload, timestamp=timestamp, extended=extended)
+    print(f"📡 HTTP POST: {can_id} → {payload}")
     return '', 204
 
 @app.route('/api/data', methods=['GET'])
 def send_data():
-    # Convert deque objects to lists before JSON serialization
-    raw_data = get_data()
-    json_data = {
-        can_id: {
-            'payload': entry['payload'],
-            'timestamp': entry['timestamp']
-        } for can_id, entries in raw_data.items() for entry in [entries[-1]]
-    }
-    return jsonify(json_data)
+    print(f"📤 HTTP GET: Sending latest per CAN ID")
+    return jsonify(get_latest_per_id())
 
-# MQTT Setup
+# 🚦 DEBUG: Show ALL message history per CAN ID
+@app.route('/api/raw', methods=['GET'])
+def raw_data():
+    return jsonify(get_data())
+
 def on_connect(client, userdata, flags, rc):
-    print("Connected to MQTT broker with result code " + str(rc))
-    client.subscribe("canbus/data")
+    if rc == 0:
+        print("✅ MQTT connected.")
+        client.subscribe("can/messages")
+    else:
+        print(f"❌ MQTT connect failed: {rc}")
 
 def on_message(client, userdata, msg):
     try:
         data = json.loads(msg.payload.decode())
         can_id = data.get('id')
         payload = data.get('payload')
+        timestamp = data.get('timestamp') or time.time()
+        extended = data.get('extended', False)
+        print(f"MQTT DATA: {data}")
+
         if can_id and isinstance(payload, list):
-            update_data(can_id, payload)
+            update_data(can_id, payload, timestamp=timestamp, extended=extended)
+            print(f"📥 MQTT: {can_id} → {payload}")
     except Exception as e:
-        print("MQTT message error:", e)
+        print("❌ MQTT message error:", e)
 
 def mqtt_thread():
-    client = mqtt.Client()
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.on_connect = on_connect
     client.on_message = on_message
+    while True:
+        try:
+            client.connect("mqtt-broker", 1883, 60)
+            client.loop_forever()
+            break
+        except Exception as e:
+            print(f"⏳ MQTT reconnecting... {e}")
+            time.sleep(2)
 
-    client.connect("mqtt-broker", 1883, 60)
-    client.loop_forever()
-
-# Start MQTT thread
 threading.Thread(target=mqtt_thread, daemon=True).start()
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     app.run(host='0.0.0.0', port=5000)
